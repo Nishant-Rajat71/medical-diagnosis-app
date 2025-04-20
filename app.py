@@ -1,12 +1,13 @@
-# ✅ Page config must be first
-st.set_page_config(page_title="AI Medical Diagnosis", layout="wide")
-
+# ✅ First: Import libraries
 import streamlit as st
 import numpy as np
 import cv2
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from grad_cam import generate_grad_cam
+
+# ✅ MUST be the first Streamlit command
+st.set_page_config(page_title="AI Medical Diagnosis", layout="wide")
 
 # 🧠 Load the compressed model
 @st.cache_resource
@@ -22,29 +23,30 @@ uploaded_file = st.sidebar.file_uploader("Choose an image", type=["jpg", "jpeg",
 st.sidebar.markdown("---")
 st.sidebar.info("Model: MobileNetV2 + Grad-CAM\n\nSize: ~26MB\nLabels: 4")
 
+# 🏠 Main Title
 st.title("🩺 AI Medical Diagnosis with Explainable Grad-CAM")
 
-# 🖼️ Main content
+# 🖼️ Handle Image Upload
 if uploaded_file:
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     img_resized = cv2.resize(img, (224, 224)) / 255.0
     img_array = np.expand_dims(img_resized, axis=0)
 
-    with st.spinner("Analyzing image..."):
+    # Show prediction progress
+    with st.spinner("🧠 Analyzing X-ray..."):
         preds = model.predict(img_array)[0]
         pred_labels = [class_names[i] for i, val in enumerate(preds > 0.5) if val]
         gradcam_image = generate_grad_cam(model, img_resized, preds, class_names)
 
-    # 📊 Show predictions with confidence
+    # 🧾 Show Predictions
     st.subheader("🔍 Prediction Results")
     for i, prob in enumerate(preds):
         st.markdown(f"**{class_names[i]}**: {prob * 100:.2f}% {'✅' if prob > 0.5 else ''}")
 
-    # 🖼️ Display images side by side
+    # 📷 Show Images Side by Side
     st.subheader("📷 Visual Explanation")
     col1, col2 = st.columns(2)
-
     with col1:
         st.image(uploaded_file, caption="Original X-ray", width=300)
     with col2:
