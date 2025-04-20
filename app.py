@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from utils.grad_cam import generate_grad_cam
+from grad_cam import generate_grad_cam
 
 @st.cache_resource
 def load_trained_model():
