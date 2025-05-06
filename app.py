@@ -1,60 +1,78 @@
 import streamlit as st
+
+# ✅ Set page
+st.set_page_config(page_title="Medical Diagnosis", layout="wide")
+
 import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from grad_cam import generate_grad_cam
 
-# Simulated model prediction output
-def dummy_model_predict(image):
-    # Pretend these are model's outputs
-    return {
-        "Pneumonia": 0.477,
-        "Effusion": 0.463,
-        "Infiltration": 0.442,
-        "No Finding": 0.442
-    }
+# ✅ Load the model (cached)
+@st.cache_resource
+def load_trained_model():
+    return load_model("compressed_model.h5")
 
-# Load and display image
-def load_image(uploaded_file):
-    image = Image.open(uploaded_file).convert('RGB')
-    return image
+model = load_trained_model()
 
-def main():
-    st.set_page_config(page_title="Chest X-ray Diagnosis", layout="wide")
+# ✅ Define class names
+class_names = ['Pneumonia', 'Effusion', 'Infiltration', 'No Finding']
 
-    st.title("💀 Upload & Prediction Settings")
-    st.write("Upload a chest X-ray image. The model predicts possible findings and shows an explainable heatmap.")
+# ✅ Sidebar
+st.sidebar.title("🩻 Upload & Prediction Settings")
+st.sidebar.markdown("Upload a chest X-ray image. The model predicts possible findings and shows an explainable heatmap.")
+st.sidebar.markdown("---")
 
-    uploaded_file = st.file_uploader("Upload Chest X-ray", type=["png", "jpg", "jpeg"])
+# ✅ Confidence Threshold
+confidence_threshold = st.sidebar.slider(
+    "Select Confidence Threshold (lower = more sensitive)", 0.0, 1.0, 0.2, 0.05
+)
 
-    threshold = st.slider('Select Confidence Threshold (lower = more sensitive)', 0.0, 1.0, 0.4, step=0.01)
+# ✅ Main Title
+st.title("🩺 Medical Diagnosis with Explainable AI")
 
-    if uploaded_file is not None:
-        # Load and display the uploaded image
-        image = load_image(uploaded_file)
-        st.image(image, caption="Uploaded Chest X-ray", width=400)
+# ✅ File uploader
+uploaded_file = st.file_uploader("📤 Upload a Chest X-Ray Image", type=["jpg", "jpeg", "png"])
 
-        # Get dummy model predictions
-        outputs = dummy_model_predict(image)
+if uploaded_file:
+    # ✅ First, display uploaded image
+    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
-        # Display Raw Model Outputs
-        st.subheader("🔎 Raw Model Outputs:")
-        st.json(outputs)
+    # ✅ Read and process the uploaded image (only once)
+    file_bytes = np.asarray(bytearray(uploaded_file.getvalue()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-        # Apply threshold
-        pred_labels = [label for label, prob in outputs.items() if prob >= threshold]
+    img_resized = cv2.resize(img, (224, 224))
+    img_normalized = img_resized / 255.0  # Normalize
+    img_array = np.expand_dims(img_normalized, axis=0)
 
+    # ✅ Spinner
+    with st.spinner("🧠 Analyzing Image..."):
+        # ✅ Predict
+        preds = model.predict(img_array)[0]
+
+        # ✅ Safe conversion to dictionary
+        raw_outputs = {class_names[i]: float(preds[i]) for i in range(len(class_names))}
+        st.write("🔎 Raw Model Outputs:", raw_outputs)
+
+        # ✅ Thresholding
+        pred_labels = []
+        for i, prob in enumerate(preds):
+            if prob >= confidence_threshold:
+                pred_labels.append(class_names[i])
+
+        # ✅ Display prediction
+        st.subheader("🔍 Predicted Findings:")
         if pred_labels:
-            st.success(f"🩺 Predicted Findings: {', '.join(pred_labels)}")
+            st.markdown(", ".join(pred_labels))
         else:
-            st.warning("⚠️ No findings above the selected threshold. Try lowering it.")
+            st.markdown("**No strong findings detected.** (Try lowering the threshold)")
 
-        # (Optional) Dummy GradCAM output
-        st.subheader("🧠 Grad-CAM Heatmap (Simulated)")
-        # Here you would generate GradCAM — I'm showing dummy
-        fig, ax = plt.subplots()
-        ax.imshow(np.random.rand(224, 224), cmap='jet')
-        ax.axis('off')
-        st.pyplot(fig)
+        # ✅ Grad-CAM
+        gradcam_image = generate_grad_cam(model, img_normalized, preds, class_names)
+        st.subheader("🧠 Grad-CAM Heatmap")
+        st.image(gradcam_image, caption="Important Regions Highlighted", use_column_width=True)
 
-if __name__ == "__main__":
-    main()
+else:
+    st.markdown("Please upload a chest X-ray image from the sidebar to get started.")
