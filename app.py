@@ -21,7 +21,7 @@ class_names = ['Pneumonia', 'Effusion', 'Infiltration', 'No Finding']
 
 # Sidebar for model info
 st.sidebar.title("🩻 Upload & Prediction Settings")
-st.sidebar.markdown("### Model: MobileNetV2 (compressed) + Grad-CAM")
+# st.sidebar.markdown("### Model: MobileNetV2 (compressed) + Grad-CAM")
 st.sidebar.markdown("This app uses a deep learning model to diagnose medical conditions from chest X-ray images.")
 st.sidebar.markdown("**Instructions:** Upload a chest X-ray image, and the model will predict the possible findings with an explanation using Grad-CAM.")
 st.sidebar.markdown("---")
