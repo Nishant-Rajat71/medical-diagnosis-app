@@ -39,8 +39,9 @@ if uploaded_file:
     st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
     # ✅ Read and process the uploaded image
-    file_bytes = np.asarray(bytearray(uploaded_file.getvalue()), dtype=np.uint8)
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert to RGB
 
     img_resized = cv2.resize(img, (224, 224))
     img_normalized = img_resized / 255.0  # Normalize
@@ -49,12 +50,12 @@ if uploaded_file:
     # ✅ Spinner
     with st.spinner("🧠 Analyzing Image..."):
         # ✅ Predict
-        preds = model.predict(img_array)[0]
+        preds = model.predict(img_array, verbose=0)[0]
         
-        # Get the top prediction regardless of threshold
+        # Get the top prediction
         top_pred_index = np.argmax(preds)
         top_pred_class = class_names[top_pred_index]
-        top_pred_prob = preds[top_pred_index]
+        top_pred_prob = float(preds[top_pred_index])
 
         # ✅ Safe conversion to dictionary
         raw_outputs = {class_names[i]: float(preds[i]) for i in range(len(class_names))}
@@ -68,6 +69,7 @@ if uploaded_file:
         st.subheader("🔍 Additional Findings (above threshold):")
         pred_labels = []
         for i, prob in enumerate(preds):
+            prob = float(prob)  # Ensure float
             if prob >= confidence_threshold and i != top_pred_index:
                 pred_labels.append(f"{class_names[i]} ({prob:.2f})")
         
@@ -76,11 +78,14 @@ if uploaded_file:
         else:
             st.markdown("No additional findings detected above threshold.")
 
-        # ✅ Grad-CAM - Always show for top prediction regardless of threshold
-        st.subheader("🧠 Grad-CAM Heatmap")
-        st.caption(f"Heatmap for primary prediction: {top_pred_class}")
-        gradcam_image = generate_grad_cam(model, img_normalized, preds, class_names)
-        st.image(gradcam_image, caption="Important Regions Highlighted", use_column_width=True)
+        # ✅ Grad-CAM
+        try:
+            gradcam_image = generate_grad_cam(model, img_normalized, preds, class_names)
+            st.subheader("🧠 Grad-CAM Heatmap")
+            st.caption(f"Heatmap for: {top_pred_class}")
+            st.image(gradcam_image, use_column_width=True)
+        except Exception as e:
+            st.error(f"Could not generate heatmap: {str(e)}")
 
 else:
     st.markdown("Please upload a chest X-ray image from the sidebar to get started.")
