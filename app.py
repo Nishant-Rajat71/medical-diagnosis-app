@@ -1,13 +1,12 @@
 import streamlit as st
-
-# ✅ Set page
-st.set_page_config(page_title="Medical Diagnosis", layout="wide")
-
 import numpy as np
 import cv2
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from grad_cam import generate_grad_cam
+
+# ✅ Set page
+st.set_page_config(page_title="Medical Diagnosis", layout="wide")
 
 # ✅ Load the model (cached)
 @st.cache_resource
@@ -39,7 +38,7 @@ if uploaded_file:
     # ✅ First, display uploaded image
     st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
-    # ✅ Read and process the uploaded image (only once)
+    # ✅ Read and process the uploaded image
     file_bytes = np.asarray(bytearray(uploaded_file.getvalue()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -51,27 +50,36 @@ if uploaded_file:
     with st.spinner("🧠 Analyzing Image..."):
         # ✅ Predict
         preds = model.predict(img_array)[0]
+        
+        # Get the top prediction regardless of threshold
+        top_pred_index = np.argmax(preds)
+        top_pred_class = class_names[top_pred_index]
+        top_pred_prob = preds[top_pred_index]
 
         # ✅ Safe conversion to dictionary
         raw_outputs = {class_names[i]: float(preds[i]) for i in range(len(class_names))}
         st.write("🔎 Raw Model Outputs:", raw_outputs)
 
-        # ✅ Thresholding
+        # ✅ Display primary prediction
+        st.subheader("🔍 Primary Prediction:")
+        st.markdown(f"**{top_pred_class}** (confidence: {top_pred_prob:.2f})")
+        
+        # ✅ Display threshold-based findings
+        st.subheader("🔍 Additional Findings (above threshold):")
         pred_labels = []
         for i, prob in enumerate(preds):
-            if prob >= confidence_threshold:
-                pred_labels.append(class_names[i])
-
-        # ✅ Display prediction
-        st.subheader("🔍 Predicted Findings:")
+            if prob >= confidence_threshold and i != top_pred_index:
+                pred_labels.append(f"{class_names[i]} ({prob:.2f})")
+        
         if pred_labels:
             st.markdown(", ".join(pred_labels))
         else:
-            st.markdown("**No strong findings detected.** (Try lowering the threshold)")
+            st.markdown("No additional findings detected above threshold.")
 
-        # ✅ Grad-CAM
-        gradcam_image = generate_grad_cam(model, img_normalized, preds, class_names)
+        # ✅ Grad-CAM - Always show for top prediction regardless of threshold
         st.subheader("🧠 Grad-CAM Heatmap")
+        st.caption(f"Heatmap for primary prediction: {top_pred_class}")
+        gradcam_image = generate_grad_cam(model, img_normalized, preds, class_names)
         st.image(gradcam_image, caption="Important Regions Highlighted", use_column_width=True)
 
 else:
